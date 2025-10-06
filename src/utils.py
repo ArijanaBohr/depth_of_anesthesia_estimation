@@ -14,6 +14,7 @@ from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
 )
+import seaborn as sns
 import matplotlib as mpl
 from matplotlib import font_manager as fm
 import shap
@@ -31,6 +32,7 @@ from lime import lime_tabular
 from lime.lime_tabular import LimeTabularExplainer
 import argparse
 from typing import Dict, Optional, Sequence
+from matplotlib import font_manager as fm
 
 # Set the random seed
 torch.manual_seed(42)
@@ -110,6 +112,11 @@ class Utils:
             preprocessing (str): Preprocessing method name.
             majority_voting (bool): Whether to use majority voting.
             sampling_rate (int): Sampling rate for data processing.
+            results_validation_csv_path (str): Path to save validation results CSV.
+            results_test_csv_path (str): Path to save test results CSV.
+            model_dir (str): Directory to save trained models.
+            stft_window_size (int, optional): Window size for STFT.
+            stft_hop (int, optional): Hop size for STFT.
 
         """
         self.set_seed(random_seed)
@@ -320,9 +327,6 @@ class Utils:
             patience (int): Number of epochs with no improvement after which training will be stopped.
             learning_rate (float): Learning rate for the optimizer.
             device (str): Device to use for training (e.g., 'cpu' or 'cuda').
-        Returns:
-            dict: Dictionary containing evaluation metrics.
-            model: The trained model.
         """
         print(f"Training {name}...")
         self.set_seed(self.random_seed)
@@ -596,7 +600,7 @@ class Utils:
                     if logits.ndim == 2 and logits.size(1) == 1:
                         logits = logits.squeeze(1)
                     loss = criterion(logits, y_batch)
-                    probs = torch.sigmoid(logits)  
+                    probs = torch.sigmoid(logits)
                     preds = (probs >= 0.5).float()
                     y_val_pred.extend(probs.detach().cpu().numpy())
 
@@ -638,7 +642,7 @@ class Utils:
                 )
                 break
 
-        # Compute metrics directly from cached best-epoch predictions (NO final pass)
+        # Compute metrics directly from cached best-epoch predictions 
         metrics = self.calculate_metrics(
             y_ground_truth=best_y_true,
             y_pred_binary=best_y_bin,
@@ -666,12 +670,18 @@ class Utils:
 
         Args:
             model_name (str): Name of the model file to load.
-            X_test (ndarray or DataFrame, optional): Test feature set for tree-based models.
-            y_test (ndarray or Series, optional): Test labels for tree-based models.
-            test_loader (DataLoader, optional): DataLoader for neural networks.
+            model: The trained model to evaluate.
+            X_test: Test feature set. 
+            y_test: Test labels.
+            test_loader (DataLoader, optional): DataLoader for test data.
+            classification_type (str): Type of classification.
+            strategy (str): Strategy used for classification.
+            number_of_features (int, optional): Number of features to use.
+            batch_size (int): Batch size used during training.
+            original_test (Series): Original test labels before any processing.
+            model_directory (str): Directory where the trained models are saved.
+            device (str): Device to use for evaluation (e.g., 'cpu' or 'cuda').
 
-        Returns:
-            dict: Dictionary with performance metrics.
         """
 
         print(f"Evaluating model: {model_name} on test set...")
@@ -761,7 +771,7 @@ class Utils:
                 :, 1
             ]  # get probability for the positive class (class 1)
             n_samples = len(y_pred_all)
-            # Evaluate without aggregation
+      
             y_pred_binary_test = (y_pred_all > 0.5).astype(int)
             f1 = f1_score(original_test, y_pred_binary_test)
             auc = roc_auc_score(y_test, y_pred_all)
@@ -770,7 +780,7 @@ class Utils:
             print("F1 Score:", f1)
             for i in range(0, n_samples, batch_size):
                 batch_truths = y_test[i : i + batch_size]
-                agg = np.median(y_pred_all[i : i + batch_size])  # or np.mean
+                agg = np.median(y_pred_all[i : i + batch_size]) 
                 binary = int(agg > 0.5)
 
                 y_pred.append(agg)
@@ -830,9 +840,6 @@ class Utils:
             strategy (str): Strategy used for classification.
             number_of_features (int, optional): Number of features to use.
             device (str): Device to use for evaluation (e.g., 'cpu' or 'cuda').
-
-        Returns:
-            dict: Dictionary with performance metrics.
         """
 
         print(f"Evaluating model: {model_name} on test set...")
@@ -978,13 +985,10 @@ class Utils:
         scaler_filename (str): Path to save the scaler
 
         Returns:
-        Tuple: (X_nn, X_val_nn, X_test_nn, X_nn_desc, X_val_nn_desc, X_test_nn_desc)
+        Tuple: (X_nn, X_val_nn, X_test_nn)
         1. X_nn: Scaled training features
         2. X_val_nn: Scaled validation features
         3. X_test_nn: Scaled test features
-        4. X_nn_desc: DataFrame with scaled training features and original column names
-        5. X_val_nn_desc: DataFrame with scaled validation features and original column names
-        6. X_test_nn_desc: DataFrame with scaled test features and original column names
         """
 
         # Extract the directory part of the filename
@@ -1003,16 +1007,6 @@ class Utils:
         X_val_nn = scaler.transform(X_val)
         X_test_nn = scaler.transform(X_test)
 
-        X_nn_desc = pd.DataFrame(
-            scaler.fit_transform(X), columns=X.columns, index=X.index
-        )
-        X_val_nn_desc = pd.DataFrame(
-            scaler.transform(X_val), columns=X_val.columns, index=X_val.index
-        )
-        X_test_nn_desc = pd.DataFrame(
-            scaler.transform(X_test), columns=X_test.columns, index=X_test.index
-        )
-
         # Save the scaler to a file
         joblib.dump(scaler, scaler_filename)
 
@@ -1023,10 +1017,6 @@ class Utils:
             X_nn,
             X_val_nn,
             X_test_nn,
-            X_nn_desc,
-            X_nn_desc,
-            X_val_nn_desc,
-            X_test_nn_desc,
         )
 
     def prepare_tensors_and_loaders(
@@ -1121,10 +1111,8 @@ class Utils:
         device=None,
         batch_size=16,
         strategy=None,
-        scaling_nn=True,
         classification_type=None,
         imbalanced=True,
-        feature_selection=False,
     ):
         """
         Preprocess data for both RandomForest and CNN models.
@@ -1140,10 +1128,8 @@ class Utils:
         device (str, optional): Device for tensor storage
         batch_size (int, optional): Batch size for DataLoaders (default: 16)
         strategy (str, optional): Feature selection strategy
-        scaling_nn (bool, optional): Whether to scale data for neural networks (default: True)
         classification_type (str, optional): Type of classification
         imbalanced (bool, optional): Whether to use an imbalanced dataset sampler (default: True)
-        feature_selection (bool, optional): Whether to perform feature selection
         Returns:
             Tuple: (X, y, X_val, y_val, X_test, y_test, train_loader_nn, val_loader_nn, test_loader_nn, input_size)
             1. X: Processed training features
@@ -1156,17 +1142,11 @@ class Utils:
             8. val_loader_nn: DataLoader for validation data (neural network)
             9. test_loader_nn: DataLoader for test data (neural network)
             10. input_size: Number of features in the training data
-            11. selected_feature_names: List of selected feature names (if feature_selection is True)
-            12. scaler_filename: Path to the saved scaler (if scaling_nn is True)
-            13. X_nn_desc: DataFrame with scaled training features and original column names
-            14. X_val_nn_desc: DataFrame with scaled validation features and original column names
-            15. X_test_nn_desc: DataFrame with scaled test features and original column names
         """
-        if not scaling_nn:
+        if not strategy == "FeatureBased":
             X_nn = X
             X_val_nn = X_val
             X_test_nn = X_test
-            scaler_filename = None
 
             train_loader_nn, val_loader_nn, test_loader_nn, input_size = (
                 self.prepare_tensors_and_loaders(
@@ -1207,38 +1187,20 @@ class Utils:
         # Shuffle data
         X, y = shuffle(X, y, random_state=self.random_seed)
 
-        # Perform feature selection if enabled
-        selected_feature_names = None
-        if feature_selection:
-            if strategy == "FeatureBased":
-                selected_features = self.perform_feature_selection_mrmr(
-                    X=X,
-                    y=y,
-                    k=k,
-                    selected_features_filename=selected_features_filename,
-                )
-            X = X.loc[:, selected_features]
-            X_val = X_val.loc[:, selected_features]
-            X_test = X_test.loc[:, selected_features]
-        if scaling_nn:
-            (
-                X_nn,
-                X_val_nn,
-                X_test_nn,
-                X_nn_desc,
-                X_nn_desc,
-                X_val_nn_desc,
-                X_test_nn_desc,
-            ) = self.save_and_apply_scaler(
-                X=X, X_val=X_val, X_test=X_test, scaler_filename=scaler_filename
-            )
-        else:
-            X_nn = X
-            X_val_nn = X_val
-            X_test_nn = X_test
-            scaler_filename = None
+        selected_features = self.perform_feature_selection_mrmr(
+            X=X,
+            y=y,
+            k=k,
+            selected_features_filename=selected_features_filename,
+        )
+        X = X.loc[:, selected_features]
+        X_val = X_val.loc[:, selected_features]
+        X_test = X_test.loc[:, selected_features]
 
-        
+        X_nn, X_val_nn, X_test_nn = self.save_and_apply_scaler(
+            X=X, X_val=X_val, X_test=X_test, scaler_filename=scaler_filename
+        )
+
         train_loader_nn, val_loader_nn, test_loader_nn, input_size = (
             self.prepare_tensors_and_loaders(
                 X_nn=X_nn,
@@ -1263,11 +1225,6 @@ class Utils:
             val_loader_nn,
             test_loader_nn,
             input_size,
-            selected_feature_names,
-            scaler_filename,
-            X_nn_desc,
-            X_val_nn_desc,
-            X_test_nn_desc,
         )
 
     def shap_summary_TabPFN(self, model_path, X, model_directory, classification_type):
@@ -1302,14 +1259,45 @@ class Utils:
         with open(save_path, "wb") as f:
             pickle.dump(shap_values, f)
 
+    def normalize_shap(self, sv, X, positive_class_index=1):
+        import numpy as np
+
+        if isinstance(sv, list):
+            if len(sv) == 1:
+                sv = sv[0]
+            else:
+                sv = sv[positive_class_index if len(sv) > positive_class_index else -1]
+            sv = np.asarray(sv)
+        else:
+            sv = np.asarray(sv)
+            if sv.ndim == 3:
+                # (n, d, k)
+                if sv.shape[:2] == X.shape:
+                    k = sv.shape[-1]
+                    sv = sv[
+                        ..., positive_class_index if k > positive_class_index else k - 1
+                    ]
+                # (k, n, d)
+                elif sv.shape[1:] == X.shape:
+                    k = sv.shape[0]
+                    sv = sv[
+                        positive_class_index if k > positive_class_index else k - 1, ...
+                    ]
+                else:
+                    raise ValueError(f"Unexpected SHAP shape {sv.shape} vs X {X.shape}")
+            elif sv.ndim != 2:
+                raise ValueError(f"Unexpected SHAP ndim={sv.ndim}, shape={sv.shape}")
+        if sv.shape != X.shape:
+            raise ValueError(f"SHAP/X shape mismatch: {sv.shape} vs {X.shape}")
+        return sv
+
     def plot_shap_beeswarm(
         self,
         training_data,
         feature_filename,
-        scaler_filename,
         model_path=None,
         shap_values_filename=None,
-        max_display=7,
+        max_display=5,
     ):
         """
         Plot SHAP values using a beeswarm plot.
@@ -1322,8 +1310,6 @@ class Utils:
             shap_values_filename (str, optional): Path to the SHAP values file. If None, model_path must be provided.
             max_display (int, optional): Maximum number of features to display in the plot.
 
-        Returns:
-            None
         """
         if (model_path is None) == (shap_values_filename is None):
             raise ValueError(
@@ -1338,97 +1324,153 @@ class Utils:
             raise KeyError(
                 f"Missing features: {missing[:10]}{'...' if len(missing)>10 else ''}"
             )
-        scaler = joblib.load(scaler_filename)
-        Xraw = training_data[selected]
-        if hasattr(scaler, "feature_names_in_") and list(
-            scaler.feature_names_in_
-        ) != list(Xraw.columns):
-            raise ValueError("Scaler feature order mismatch.")
-        X = pd.DataFrame(scaler.transform(Xraw), columns=Xraw.columns, index=Xraw.index)
+        X = training_data[selected]
 
+        SINGLE_COL_W = 6.5  # a little wider so bigger fonts don’t crowd
+        FIG_H = 3.5
+        FS_BASE = 16  # base font size
+        FS_TICK = 16  # tick labels
+        FS_LEG = 16  # legend/colorbar labels
+
+        serif_stack = ["Times New Roman", "Times", "Nimbus Roman No9 L", "DejaVu Serif"]
+
+        try:
+            fm.findfont(serif_stack[0], fallback_to_default=False)
+            chosen_serif = serif_stack[0]
+        except Exception:
+            chosen_serif = "serif"
+
+        sns.set_theme(
+            style="whitegrid",
+            font="serif",
+            rc={
+                "font.family": "serif",
+                "font.serif": serif_stack,
+                "font.size": FS_BASE,
+                "axes.titlesize": FS_BASE + 1,
+                "axes.labelsize": FS_BASE,
+                "xtick.labelsize": FS_TICK,
+                "ytick.labelsize": FS_TICK,
+                "legend.fontsize": FS_LEG,  # for any regular legends
+                "pdf.fonttype": 42,
+                "ps.fonttype": 42,
+                "text.usetex": False,
+                "axes.linewidth": 0.8,
+            },
+        )
+
+        # --- your existing prep ---
         feat_names = [self.feature_name_map.get(c, c) for c in X.columns]
 
-        # --- Get shap values (CatBoost vs TabPFN) ---
         if shap_values_filename is None:
-            print("Get Shap Values for CatBoost")
-            if not os.path.exists(model_path):
-                raise FileNotFoundError(f"Model file not found: {model_path}")
             with open(model_path, "rb") as f:
                 model = pickle.load(f)
             sv = shap.TreeExplainer(model).shap_values(X)
-            if isinstance(sv, list):  # choose positive class if available
-                sv = sv[1] if len(sv) > 1 else sv[0]
-            sv = np.asarray(sv)
         else:
-            print("Get Shap Values for TabPFN")
             with open(shap_values_filename, "rb") as f:
                 stored = pickle.load(f)
             sv = getattr(stored, "values", stored)
-            sv = np.asarray(sv)
-            if sv.ndim == 3:  # (n, d, n_classes) -> pick class 1 if exists else 0
-                sv = sv[:, :, 1 if sv.shape[-1] > 1 else 0]
 
-        if sv.shape != X.shape:
-            raise ValueError(f"SHAP/X shape mismatch: {sv.shape} vs {X.shape}")
+        sv = np.asarray(sv)
+        sv = self.normalize_shap(sv, X, positive_class_index=1)
 
-        print("SHAP shape:", sv.shape)
+        # --- plot (JBHI style) ---
+        plt.figure(figsize=(SINGLE_COL_W, FIG_H))
+        shap.summary_plot(
+            sv,
+            X,
+            feature_names=feat_names,
+            show=False,
+            max_display=max_display,
+            plot_size=None,
+        )
 
-        # --- Fonts & rc (compact, with fallback if Arial missing) ---
-        try:
-            fm.findfont("Arial", fallback_to_default=False)
-            sans = ["Arial"]
-        except Exception:
-            print("[warn] Arial not found; using default sans-serif.")
-            sans = ["DejaVu Sans", "Liberation Sans"]
+        fig, ax = plt.gcf(), plt.gca()
 
-        rc = {
-            "font.family": "sans-serif",
-            "font.sans-serif": sans,
-            "font.size": 20,
-            "axes.titlesize": 20,
-            "axes.labelsize": 20,
-            "xtick.labelsize": 18,
-            "ytick.labelsize": 20,
-            "legend.fontsize": 20,
-            "pdf.fonttype": 42,
-            "ps.fonttype": 42,
+
+        ax.title.set_fontsize(FS_BASE + 1)
+        ax.xaxis.label.set_size(FS_BASE)
+        ax.yaxis.label.set_size(FS_BASE)
+        for tick in ax.get_xticklabels() + ax.get_yticklabels():
+            tick.set_fontsize(FS_TICK)
+
+        # --- make colorbar (legend) fonts bigger ---
+        cbar = fig.axes[-1]  
+        cbar.tick_params(labelsize=FS_LEG) 
+        cbar.yaxis.label.set_size(FS_LEG)  
+
+        # X-axis limits and ticks
+        vmax = float(np.max(np.abs(sv))) or 1.0
+        if shap_values_filename is not None:
+            ax.set_xlim(-max(0.5, vmax), max(0.5, vmax))
+            ticks = [-0.5, 0, 0.5]
+        else:
+            ax.set_xlim(-max(1.5, vmax), max(1.5, vmax))
+            ticks = [-1.5, 0, 1.5]
+
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([f"{t:.1f}" for t in ticks], fontsize=FS_TICK)
+
+        for spine in ax.spines.values():
+            spine.set_linewidth(0.8)
+
+        sns.despine()
+        fig.tight_layout()
+
+        print("Chosen serif family:", chosen_serif)
+        print("Resolved font path for TNR:", fm.findfont("Times New Roman"))
+
+        plt.show()
+
+    def escape_latex(self, s: str) -> str:
+        """Escape LaTeX special chars."""
+        replacements = {
+            "\\": r"\textbackslash{}",
+            "&": r"\&",
+            "%": r"\%",
+            "$": r"\$",
+            "#": r"\#",
+            "_": r"\_",
+            "{": r"\{",
+            "}": r"\}",
+            "~": r"\textasciitilde{}",
+            "^": r"\textasciicircum{}",
         }
+        out = []
+        for ch in s:
+            out.append(replacements.get(ch, ch))
+        return "".join(out)
 
-        with plt.rc_context(rc):
-            shap.summary_plot(
-                sv, X, feature_names=feat_names, show=False, max_display=max_display
-            )
-            fig, ax = plt.gcf(), plt.gca()
+    def latex_one_column_feature_table(
+        self, columns, title="Attribute Table", show_original_in_parens=True, wrap=False
+    ):
+        """
+        Build LaTeX for a compact 1-column attribute table:
+        (N, Feature)
+        Set wrap=True to use a p{...} column that wraps long text.
+        """
 
-            # Try to load Arial, fallback if missing
-            try:
-                fm.findfont("Arial", fallback_to_default=False)
-                arial_font = fm.FontProperties(family="Arial")
-            except Exception:
-                print("[warn] Arial not found; using default sans-serif.")
-                arial_font = fm.FontProperties(family="sans-serif")
+        display = []
+        for col in columns:
+            pretty = self.feature_name_map.get(col, col)
+            display.append(pretty)
 
-            # Apply to ALL text
-            for text in fig.findobj(match=mpl.text.Text):
-                text.set_fontsize(20)
-                text.set_fontproperties(arial_font)
-
-                vmax = float(np.max(np.abs(sv))) or 1.0
-
-            if shap_values_filename is not None:  # PermutationExplainer branch
-                # adaptive limit, but fixed ticks for probability scale
-                ax.set_xlim(-max(0.5, vmax), max(0.5, vmax))
-                ticks = [-0.5, 0, 0.5]
-            else:  # TreeExplainer branch
-                # adaptive limit, but fixed ticks for log-odds scale
-                ax.set_xlim(-max(1.5, vmax), max(1.5, vmax))
-                ticks = [-1.5, 0, 1.5]
-
-            ax.set_xticks(ticks)
-            ax.set_xticklabels([f"{t:.1f}" for t in ticks])
-
-            fig.tight_layout()
-            plt.show()
+        lines = []
+        lines.append(r"\begin{table}[h]")
+        lines.append(r"\centering")
+        lines.append(rf"\caption{{{self.escape_latex(title)}}}")
 
 
+        col_spec = r"|c|l|" if not wrap else r"|c|p{0.75\linewidth}|"
+        lines.append(rf"\begin{{tabular}}{{{col_spec}}}")
+        lines.append(r"\hline")
+        lines.append(r"\textbf{N} & \textbf{Feature} \\")
+        lines.append(r"\hline")
 
+        for i, txt in enumerate(display, start=1):
+            lines.append(f"{i} & {self.escape_latex(txt)} \\\\")
+
+        lines.append(r"\hline")
+        lines.append(r"\end{tabular}")
+        lines.append(r"\end{table}")
+        return "\n".join(lines)
