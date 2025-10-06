@@ -28,7 +28,7 @@ from src.models.UCR import SimpleModel, FCN, UCRResNet
 from matplotlib.collections import LineCollection
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
-
+import seaborn as sns
 
 class EEGInference:
     def __init__(
@@ -134,13 +134,19 @@ class EEGInference:
                 model_name=self.model_names[classification_type],
                 input_size=input_sizes[classification_type],
             )
+            if self.scaler_applicable:
+
+                features = features_processed[classification_type]
+            else:
+                features = feature_sets[classification_type]
+
             predictions_binary, predictions_probability = self.run_model(
-                test_loader=test_loaders[classification_type],
-                model_filename=self.model_filenames[classification_type],
-                model=model,
-                model_name=self.model_names[classification_type],
-                features=feature_sets[classification_type],
-            )
+                    test_loader=test_loaders[classification_type],
+                    model_filename=self.model_filenames[classification_type],
+                    model=model,
+                    model_name=self.model_names[classification_type],
+                    features=features,
+                )
 
             predicted_eeg_window[f"Probability_predicted_for_{classification_type}"] = (
                 predictions_probability
@@ -215,20 +221,20 @@ class EEGInference:
                 if self.inference_mode:
                     remove_features = ["Start", "End"]
                 else:
-          
+
                     remove_features = [
-                            "Start",
-                            "End",
-                            "sleep",
-                            "cr",
-                            "sspl",
-                            "burst_suppression",
-                        ]
-                   
+                        "Start",
+                        "End",
+                        "sleep",
+                        "cr",
+                        "sspl",
+                        "burst_suppression",
+                    ]
+
                 feature_sets[classification_type] = eeg_window_metrics.drop(
                     columns=remove_features
                 )
-            if self.scaler_applicable:
+            if self.strategy == "FeatureBased":
                 input_size, test_loader, feature_processed = self.get_scaler(
                     features=feature_sets[classification_type],
                     scaler_filename=self.scaler_filenames[classification_type],
@@ -388,16 +394,11 @@ class EEGInference:
                 model = pickle.load(f)
 
             X_input = np.nan_to_num(features, nan=0)
-            # Warm-up step (unmeasured)
-            _ = (
-                model.predict_proba(np.nan_to_num(features, nan=0))
-                if hasattr(model, "predict_proba")
-                else None
-            )
             start = time.perf_counter()
 
             if hasattr(model, "predict_proba"):
                 y_pred = model.predict_proba(X_input)[:, 1]
+                print("predict proba was used")
             elif hasattr(model, "decision_function"):
                 y_pred = model.decision_function(X_input)
             else:
@@ -543,14 +544,13 @@ class EEGInference:
             (1020, 1028),
             (1800, 1808),
             (8008, 8016),
-            (7180, 7188),
+
         ]
-        labels = None  # If you want to show the zoomed in windows, put it to labels = ["A", "B", "C", "D"]
+        labels =None  # If you want to show the zoomed in windows, put it to labels = ["A", "B", "C"]
         actual_labels = [
-            #       "Awake",
-            #       "Moderate Anesthesia",
-            #       "Deep  Anesthesia",
-            #       "Light Anesthesia",
+                   "Awake",
+                   "Moderate Anesthesia",
+                   "Deep  Anesthesia",
         ]
         self.create_inference_figure(
             predicted_data_frame,
@@ -629,12 +629,48 @@ class EEGInference:
             labels (list): List of labels for the windows (A, B, C).
             actual_labels (list): List of actual labels corresponding to the windows.
         """
-        rcParams["text.usetex"] = True
-        mpl.rcParams["font.family"] = "sans-serif"
-        mpl.rcParams["font.sans-serif"] = ["Arial"]
+            # ---- IEEE / JBHI figure constants ----
+        SINGLE_COL_W = 16  # inches (IEEE single column ≈ 3.5")
+        FIG_H = 11       # tune as needed to fit your max_display
+        FS_BASE = 17 #15        # axis/title 9–10 pt is typical
+        FS_TICK = 15
+        FS_LEG  = 15
+
+        # Prefer a real serif TTF that embeds cleanly.
+        # Times New Roman may not be available as embeddable TTF on all OSes, so fall back sensibly.
+        serif_stack = ["Times New Roman", "Times", "Nimbus Roman No9 L", "DejaVu Serif"]
+
+        try:
+            # Will raise if first choice isn't found when fallback=False
+            fm.findfont(serif_stack[0], fallback_to_default=False)
+            chosen_serif = serif_stack[0]
+        except Exception:
+            # Use a stack so we stay serif even if TNR isn't present
+            chosen_serif = "serif"
+
+        sns.set_theme(
+            style="whitegrid",
+            font="serif",
+            rc={
+                "font.family": "serif",
+                "font.serif": serif_stack,
+                "font.size": FS_BASE,
+                "axes.titlesize": FS_BASE,
+                "axes.labelsize": FS_BASE,
+                "xtick.labelsize": FS_TICK,
+                "ytick.labelsize": FS_TICK,
+                "legend.fontsize": FS_LEG,
+                # Embed fonts properly for IEEE PDFs
+                "pdf.fonttype": 42,
+                "ps.fonttype": 42,
+                "text.usetex": False,
+                # Thinner spines/lines for print
+                "axes.linewidth": 0.8,
+            },
+        )
         print(predicted_data_frame)
-        fig = plt.figure(figsize=(16, 10))
-        gs = gridspec.GridSpec(4, 1, height_ratios=[1, 2, 1, 3])
+        fig = plt.figure(figsize=(SINGLE_COL_W, FIG_H))
+        gs = gridspec.GridSpec(4, 1, height_ratios=[1, 2, 1, 4])
         plt.subplots_adjust(hspace=0.7)
 
         # --- Subplot 0: EEG Voltage trace ---
@@ -646,8 +682,8 @@ class EEGInference:
             linewidth=0.5,
         )
 
-        ax0.set_ylabel("EEG (µV)", fontsize=14)
-        ax0.set_title("EEG Voltage Trace", fontsize=15)
+        ax0.set_ylabel("EEG (µV)", fontsize=20)
+        ax0.set_title("EEG Voltage Trace", fontsize=20)
 
         # --- Subplot 1: Compute spectrogram from EEG trace --- ---
         # Parameters
@@ -666,14 +702,14 @@ class EEGInference:
             vmin=-20,
             vmax=20,
         )
-        ax1.set_ylabel("Frequency (Hz)", fontsize=15, labelpad=15)
-        ax1.set_title("Spectrogram (Window-wise)", fontsize=15)
+        ax1.set_ylabel("Frequency (Hz)", fontsize=20, labelpad=20)
+        ax1.set_title("Spectrogram (Window-wise)", fontsize=20)
         divider = make_axes_locatable(ax1)
         cax = divider.append_axes(
             "bottom", size="10%", pad=0.3
         )  # adjust padding as needed
         cbar = plt.colorbar(im, cax=cax, orientation="horizontal")
-        cbar.set_label("Power (dB)", fontsize=14)
+        cbar.set_label("Power (dB)", fontsize=20)
 
         # --- Subplot 2: Propfol Concentrations ---
         ax_combined = plt.subplot(gs[2], sharex=ax0)
@@ -685,23 +721,22 @@ class EEGInference:
                 self.propofol_concentration_blood_plasma["annotations"],
                 color="#272727",
             )
-            ax_combined.set_ylabel("Concentration (µg/ml)", fontsize=15, labelpad=20)
-            ax_combined.set_title("Propofol Concentration", fontsize=15)
+            ax_combined.set_ylabel("Concentration (µg/ml)", fontsize=20, labelpad=25)
+            ax_combined.set_title("Propofol Concentration", fontsize=20)
             # Add a legend to distinguish the plots
-            ax_combined.legend()
-
+        
         # --- Subplot 3: Discrete Predictions---
         ax3 = plt.subplot(gs[3], sharex=ax0)
         rename_map = {
-            "Predicted_burst_suppression": "BS",
+            "Predicted_burst_suppression": "BuS",
             "Predicted_sleep": "CNLneg",
             "Predicted_sspl": "SSPLneg",
             "Predicted_cr": "CRneg",
             "sleep": "GT: CNLneg",
             "cr": "GT: CRneg",
             "sspl": "GT: SSPLneg",
-            "burst_suppression": "GT: BS",
-            "Probability_predicted_for_burst_suppression": "BS",
+            "burst_suppression": "GT: BuS",
+            "Probability_predicted_for_burst_suppression": "BuS",
             "Probability_predicted_for_sleep": "CNLneg",
             "Probability_predicted_for_sspl": "SSPLneg",
             "Probability_predicted_for_cr": "CRneg",
@@ -711,9 +746,6 @@ class EEGInference:
         colors = ["#272727", "#272727", "#272727", "#272727"]
 
         for i, col in enumerate(predicted_cols):
-            rcParams["text.usetex"] = True
-            mpl.rcParams["font.family"] = "sans-serif"
-            mpl.rcParams["font.sans-serif"] = ["Arial"]
             offset = i * 1.5
 
             # Plot model prediction (assumed continuous and time-aligned)
@@ -744,15 +776,16 @@ class EEGInference:
         y_labels = [rename_map.get(col, col) for col in predicted_cols]
         yticks = [i * 1.5 for i in range(len(predicted_cols))]
         ax3.set_yticks(yticks)
-        ax3.set_yticklabels(y_labels, fontsize=14, fontname="Arial")
+        ax3.set_yticklabels(y_labels, fontsize=20)
 
-        ax3.set_xlabel("Time (s)", fontsize=14, fontname="Arial")
+        ax3.set_xlabel("Time (s)", fontsize=20)
         ax3.set_title(
-            "Model Binary Predictions vs. Ground Truth", fontsize=15, fontname="Arial"
+            "Model Binary Predictions vs. Ground Truth", fontsize=20
         )
         ax3.legend(loc="upper right", ncol=2)
         ax3.grid(True)
         ax0.set_ylim(-200, 200)
+       # ax0.set_ylim(-70, 25)
         ax0.set_xlim(
             original_dataframe["Time (s)"].min(),
             original_dataframe["Time (s)"].max(),
@@ -770,14 +803,13 @@ class EEGInference:
             if windows is not None and labels is not None:
 
                 self.add_zoomed_in_labels(axes, windows, actual_labels, labels)
-            rcParams["text.usetex"] = True
-            mpl.rcParams["font.family"] = "sans-serif"
-            mpl.rcParams["font.sans-serif"] = ["Arial"]
             plt.tight_layout()
             plt.show()
+        
         new_fig_height = 10 * (3 / 7)
 
-        fig2 = plt.figure(figsize=(16, new_fig_height))
+        fig2 = plt.figure(figsize=(SINGLE_COL_W, new_fig_height))
+
         ax = fig2.add_subplot(111)
 
         predicted_data_frame = predicted_data_frame.sort_values("Time (s)").reset_index(
@@ -847,14 +879,14 @@ class EEGInference:
                 )
 
         # Left axis
+        y_labels = [rename_map.get(col, col) for col in predicted_cols]
         yticks = [i * row_gap for i in range(len(predicted_prob_cols))]
         ax.set_yticks(yticks)
-        ax.set_yticklabels(predicted_prob_cols, fontsize=14, fontname="Arial")
-        ax.set_xlabel("Time (s)", fontsize=14, fontname="Arial")
+        ax.set_yticklabels(y_labels, fontsize=22)
+        ax.set_xlabel("Time (s)", fontsize=22)
         ax.set_title(
             "Model Predicted Probabilities vs. Ground Truth",
             fontsize=15,
-            fontname="Arial",
         )
         ax.legend(loc="upper right", ncol=2)
         ax.grid(True)
@@ -876,10 +908,11 @@ class EEGInference:
 
         ax_right.set_ylim(ax.get_ylim())
         ax_right.set_yticks(rticks)
-        ax_right.set_yticklabels(rticklabels, fontsize=12, fontname="Arial")
-        ax_right.set_ylabel("Probability", fontsize=14, fontname="Arial")
+        ax_right.set_yticklabels(rticklabels, fontsize=15)
+        ax_right.set_ylabel("Probability", fontsize=22)
         ax.margins(x=0)
-        plt.draw()
+        plt.tight_layout()
+        plt.show()
 
     def add_zoomed_in_labels(self, axes, windows, actual_labels, labels):
         """
@@ -890,8 +923,44 @@ class EEGInference:
         :param labels: List of labels to display above the windows.
 
         """
-        mpl.rcParams["font.family"] = "sans-serif"
-        mpl.rcParams["font.sans-serif"] = ["Arial"]
+        SINGLE_COL_W = 13  # inches (IEEE single column ≈ 3.5")
+        FIG_H = 5.5        # tune as needed to fit your max_display
+        FS_BASE = 22         # axis/title 9–10 pt is typical
+        FS_TICK = 22
+        FS_LEG  = 22
+
+        # Prefer a real serif TTF that embeds cleanly.
+        # Times New Roman may not be available as embeddable TTF on all OSes, so fall back sensibly.
+        serif_stack = ["Times New Roman", "Times", "Nimbus Roman No9 L", "DejaVu Serif"]
+
+        try:
+            # Will raise if first choice isn't found when fallback=False
+            fm.findfont(serif_stack[0], fallback_to_default=False)
+            chosen_serif = serif_stack[0]
+        except Exception:
+            # Use a stack so we stay serif even if TNR isn't present
+            chosen_serif = "serif"
+
+        sns.set_theme(
+            style="whitegrid",
+            font="serif",
+            rc={
+                "font.family": "serif",
+                "font.serif": serif_stack,
+                "font.size": FS_BASE,
+                "axes.titlesize": FS_BASE,
+                "axes.labelsize": FS_BASE,
+                "xtick.labelsize": FS_TICK,
+                "ytick.labelsize": FS_TICK,
+                "legend.fontsize": FS_LEG,
+                # Embed fonts properly for IEEE PDFs
+                "pdf.fonttype": 42,
+                "ps.fonttype": 42,
+                "text.usetex": False,
+                # Thinner spines/lines for print
+                "axes.linewidth": 0.8,
+            },
+        )
         for start, end in windows:
             for ax in axes:
                 ax.axvspan(
@@ -911,25 +980,23 @@ class EEGInference:
                 xycoords=("data", "axes fraction"),
                 ha="center",
                 va="bottom",
-                fontsize=14,
-                fontname="Arial",
+                fontsize=FS_BASE,
                 color="gray",
             )
         total_length_windows = len(windows)
         for i, (start, end) in enumerate(windows):
-            fig = plt.figure(figsize=(14, 5))
+
+            fig = plt.figure(figsize=(SINGLE_COL_W, FIG_H))
+            gs_zoom = gridspec.GridSpec(2,1)
             actual_label_section = actual_labels[i]
 
-            fig.suptitle(
-                actual_label_section,
-                fontsize=20,
-                x=0.01,
-                ha="left",
-                backgroundcolor="#f0f0f0",
-                fontname="Arial",
-            )  # light grey
-
-            gs_zoom = gridspec.GridSpec(2, 1)
+       #     fig.suptitle(
+       #         actual_label_section,
+       #         fontsize=FS_BASE + 4,
+       #         x=0.01,
+       #         ha="left",
+       #         backgroundcolor="#f0f0f0",
+       #     )  # light grey
 
             ax0_z = plt.subplot(gs_zoom[0])
             ax0_z.set_xlim(start, end)
@@ -947,13 +1014,15 @@ class EEGInference:
 
             ax0_z.set_ylim(min(signal_zoom), max(signal_zoom))
 
-            ax0_z.set_ylabel("EEG Voltage (µV)", fontsize=15, fontname="Arial")
-            ax0_z.tick_params(axis="both", labelsize=13)
-            ax0_z.legend()
+            ax0_z.set_ylabel("EEG (µV)", fontsize=FS_BASE)
+            ax0_z.tick_params(axis="both", labelsize=FS_BASE)
             ax0_z.grid(True)
-            ax0_z.set_xlabel("Time (s)", fontsize=15, fontname="Arial")
-            ax0_z.set_title("EEG Voltage Trace", fontsize=15, fontname="Arial")
+            ax0_z.set_xlabel("Time (s)", fontsize=FS_BASE)
+            ax0_z.set_title("EEG Voltage Trace", fontsize=FS_BASE)
             ax0_z.set_ylim(-130, 130)
+
+           # ax0_z.set_ylim(-70, 25)
+            
 
             ax1_z = plt.subplot(gs_zoom[1])
 
@@ -992,22 +1061,25 @@ class EEGInference:
                 lc = LineCollection(segments, cmap=cmap, norm=norm)
                 #  lc = LineCollection(segments, color="black", linewidth=1.5)
                 lc.set_array(Pxx_dB_zoom)
-                lc.set_linewidth(1.5)
+                lc.set_linewidth(3)
                 line = ax1_z.add_collection(lc)
 
                 ax1_z.set_xlim(0, 47)
                 ax1_z.set_ylim(-25, 30)
-                ax1_z.set_xlabel("Frequency (Hz)", fontsize=15, fontname="Arial")
-                ax1_z.tick_params(axis="both", labelsize=13)
+                ax1_z.set_xlabel("Frequency (Hz)", fontsize=FS_BASE)
+                ax1_z.tick_params(axis="both", labelsize=FS_BASE)
                 ax1_z.set_ylabel(
-                    "Power (dB)", fontsize=15, labelpad=10, fontname="Arial"
+                    "Power (dB)", fontsize=FS_BASE, labelpad=11
                 )
-                ax1_z.set_title("Power Spectra", fontsize=15, fontname="Arial")
+                ax1_z.set_title("Power Spectra", fontsize=FS_BASE)
+
 
                 if i == total_length_windows - 1:
                     divider = make_axes_locatable(ax1_z)
                     cax = divider.append_axes("bottom", size="25%", pad=0.7)
                     cbar = plt.colorbar(line, cax=cax, orientation="horizontal")
-                    cbar.set_label("Power (dB)", fontsize=15, fontname="Arial")
+                    cbar.set_label("Power (dB)", fontsize=FS_BASE)
+                    fig.canvas.draw()
+            
             plt.tight_layout()
             plt.show()
