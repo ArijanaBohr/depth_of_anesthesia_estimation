@@ -26,12 +26,12 @@ class TrainingHPC:
     def __init__(self, window_size, step_size, number_of_features):
         self.window_size = window_size
         self.step_size = step_size
-        self.random_seed = 42
         self.strategy = "FeatureBased"
         print(f"Initialized with window_size={window_size},step_size={step_size}")
         self.preprocessing = True
         self.feature_selection = True
         self.depth_of_anesthesia = True
+        self.random_seed = 42
         self.for_majority = int(self.window_size / 2)
         self.sampling_rate = 128
         self.number_of_features = number_of_features
@@ -59,11 +59,11 @@ class TrainingHPC:
             results_validation_csv_path=self.base_path
             / "doA_classification"
             / self.ml_models_path
-            / f"final_{self.strategy}_validation_results_df.csv",
+            / f"{self.strategy}_validation_results_df.csv",
             results_test_csv_path=self.base_path
             / "doA_classification"
             / self.ml_models_path
-            / f"final_{self.strategy}_test_results_df.csv",
+            / f"{self.strategy}_test_results_df.csv",
             model_dir=self.base_path / "doA_classification" / self.ml_models_path,
         )
 
@@ -100,11 +100,6 @@ class TrainingHPC:
                 val_loader_nn,
                 test_loader_nn,
                 input_size,
-                selected_feature_names,
-                scaler_filename,
-                X_nn,
-                X_val_nn,
-                X_test_nn,
             ) = self.utils.preprocess_data(
                 X=self.training_data[features],
                 y=self.training_data[label],
@@ -117,7 +112,6 @@ class TrainingHPC:
                 device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
                 strategy=self.strategy,
                 classification_type=label,
-                feature_selection=True,
                 imbalanced=True,
             )
 
@@ -132,11 +126,6 @@ class TrainingHPC:
                 "val_loader_nn": val_loader_nn,
                 "test_loader_nn": test_loader_nn,
                 "input_size": input_size,
-                "selected_feature_names": selected_feature_names,
-                "scaler_filename": scaler_filename,
-                "scaled X": X_nn,
-                "scaled X_val": X_val_nn,
-                "scaled X_test": X_test_nn,
             }
 
         print("Processing completed for all labels.")
