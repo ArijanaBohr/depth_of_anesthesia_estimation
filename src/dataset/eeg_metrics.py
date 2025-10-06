@@ -3,7 +3,6 @@ import pywt  # type: ignore
 from scipy.stats import skew, kurtosis, differential_entropy
 import pycatch22
 import antropy as ant
-from hurst import compute_Hc
 from scipy.signal import welch
 from statsmodels.tsa.ar_model import AutoReg
 from lempel_ziv_complexity import lempel_ziv_complexity
@@ -49,7 +48,6 @@ class EEG_metrics:
         - Kaspar, F., & Schuster, H. G. (1987). "Easily calculable measure for the complexity of spatiotemporal patterns." Phys. Rev. A, 36(2), 842–848.
         - https://pypi.org/project/lempel-ziv-complexity/
         - https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
-        - https://pypi.org/project/hurst/ 
         - Virtanen, P., Gommers, R., Oliphant, T.E., Haberland, M., Reddy, T., Cournapeau, D., Burovski, E., Peterson, P., Weckesser, W., Bright, J. and Van Der Walt, S.J., 2020. SciPy 1.0: fundamental algorithms for scientific computing in Python. Nature methods, 17(3), pp.261-272.
         - Harris, C.R., Millman, K.J., Van Der Walt, S.J., Gommers, R., Virtanen, P., Cournapeau, D., Wieser, E., Taylor, J., Berg, S., Smith, N.J. and Kern, R., 2020. Array programming with NumPy. nature, 585(7825), pp.357-362.
         - Lee, G.R., Gommers, R., Wasilewski, F., Wohlfahrt, K., O’Leary, A., 2019. Pywavelets: A python package for wavelet analysis. Journal of Open Source Software 4, 1237. doi:10.21105/joss.01237.
@@ -107,7 +105,6 @@ class EEG_metrics:
             "time_kurtosis": kurtosis(eeg_window),
             "time_arithmic_mean": np.mean(eeg_window),  # AM
             "mean_energy": np.mean(np.square(eeg_window)),
-            "hurst_exponent": self.safe_hurst_exponent(eeg_window),
             "time_median": np.median(eeg_window),  # MN
             "num_zero_crossings": ant.num_zerocross(eeg_window),
         }
@@ -330,25 +327,6 @@ class EEG_metrics:
         return {
             "dfa_exponent": ant.detrended_fluctuation(eeg_window),
         }
-
-    def safe_hurst_exponent(self, eeg_window):
-        """
-        Computes Hurst exponent safely.
-        Returns 0.0 if computation fails (e.g., log10 of zero or invalid eeg_window).
-        """
-        # Check for empty or invalid eeg_window
-        if (
-            eeg_window is None
-            or len(eeg_window) < 20
-            or np.any(np.isnan(eeg_window))
-            or np.any(eeg_window <= 0)
-        ):
-            return 0.0
-
-        H, _, _ = compute_Hc(eeg_window, kind="price", simplified=True)
-        if not np.isfinite(H) or H <= 0:
-            return 0.0
-        return H
 
     def ar_coefficients_wang(self, eeg_window, order=5):
         try:
