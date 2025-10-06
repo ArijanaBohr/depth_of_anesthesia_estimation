@@ -1,11 +1,11 @@
-#  Depth of Anesthesia Classification in Single-Channel EEG: Analysis of Machine Learning Approaches and Future Perspectives by Anonymized Authors
+#  Advancing Depth of Anesthesia Monitoring based on Single-Channel EEG: A Comparative Study of Machine Learning Approaches by Anonymized Authors
 
 Estimation of the depth of anesthesia with the help of the parameters of 
-CNLneg, CRneg, SSPLneg and BS (details can be found in the associated paper).
+CNLneg, CRneg, SSPLneg and BuS (details can be found in the associated paper).
 
-This projects trains binary classifiers of CNLneg/SSPLneg/CRneg/BS. 
+This projects trains binary classifiers of CNLneg/SSPLneg/CRneg/BuS. 
 
-(in our code the variables for CNLneg/SSPlneg/CRneg/BS are sleep/sspl/cr/burst_suppression)
+(in our code the variables for CNLneg/SSPlneg/CRneg/BuS are sleep/sspl/cr/burst_suppression)
 # Step-by Step Tutorial:
 ## ⚙️ Installation
 
@@ -191,8 +191,7 @@ The notebook demonstrates how to load the trained models and run predictions on 
 ```
 ## 📑 Citation
 If you use this code, please cite our paper: 
-Depth of Anesthesia Classification in Single-Channel EEG:
-Analysis of Machine Learning Approaches and Future Perspectives by 
+Advancing Depth of Anesthesia Monitoring based on Single-Channel EEG: A Comparative Study of Machine Learning Approaches by 
 Anonymized Authors (Bibtex to follow)
 
 
