@@ -1,4 +1,4 @@
-#  Advancing Depth of Anesthesia Monitoring based on Single-Channel EEG: A Comparative Study of Machine Learning Approaches by Anonymized Authors
+#  Advancing Depth of Anesthesia Monitoring based on Single-Channel EEG: A Comparative Study of Machine Learning Approaches by Bohr and Salin et al.
 
 Estimation of the depth of anesthesia with the help of the parameters of 
 CNLneg, CRneg, SSPLneg and BuS (details can be found in the associated paper).
