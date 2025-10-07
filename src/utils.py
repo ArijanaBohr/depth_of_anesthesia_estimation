@@ -1374,7 +1374,6 @@ class Utils:
         sv = np.asarray(sv)
         sv = self.normalize_shap(sv, X, positive_class_index=1)
 
-        # --- plot (JBHI style) ---
         plt.figure(figsize=(SINGLE_COL_W, FIG_H))
         shap.summary_plot(
             sv,

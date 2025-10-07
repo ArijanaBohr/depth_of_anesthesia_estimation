@@ -629,23 +629,18 @@ class EEGInference:
             labels (list): List of labels for the windows (A, B, C).
             actual_labels (list): List of actual labels corresponding to the windows.
         """
-            # ---- IEEE / JBHI figure constants ----
-        SINGLE_COL_W = 16  # inches (IEEE single column ≈ 3.5")
-        FIG_H = 11       # tune as needed to fit your max_display
-        FS_BASE = 17 #15        # axis/title 9–10 pt is typical
+        SINGLE_COL_W = 16  
+        FIG_H = 11     
+        FS_BASE = 17 
         FS_TICK = 15
         FS_LEG  = 15
 
-        # Prefer a real serif TTF that embeds cleanly.
-        # Times New Roman may not be available as embeddable TTF on all OSes, so fall back sensibly.
         serif_stack = ["Times New Roman", "Times", "Nimbus Roman No9 L", "DejaVu Serif"]
 
         try:
-            # Will raise if first choice isn't found when fallback=False
             fm.findfont(serif_stack[0], fallback_to_default=False)
             chosen_serif = serif_stack[0]
         except Exception:
-            # Use a stack so we stay serif even if TNR isn't present
             chosen_serif = "serif"
 
         sns.set_theme(
