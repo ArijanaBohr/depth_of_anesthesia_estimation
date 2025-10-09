@@ -94,10 +94,7 @@ This ensures patients/volunteers are exclusively in the training/test or validat
 The training/validation/testing ids signify which patients/volunteers are assigned to which set. Patients/Volunteers should only be exclusively assigend to one set (no overlap!).
 
 ### Option 1: Feature-based Approach:
-Run the notebook [training.ipynb](training.ipynb) (The notebook demonstrates how to run it step-by-step)
-
-If you prefer to run it on a high-performance computing system, we recommend using the notebook [training-hpc.py](training-hpc.py). To execute the corresponding script, run in the terminal: `python training-hpc.py`
- 
+Run the notebook [training-hpc.py](training-hpc.py) 
 
 > ⚡ **GPU recommended**:  
 > We suggest running the code on a CUDA-enabled GPU for best performance.  
@@ -142,8 +139,8 @@ The notebook demonstrates how to load the trained models and run predictions on 
 
 ```
 ├── ./
-│   ├── training.ipynb          # Training notebook based on the computed features
-│   ├── training-hpc.py         # Training script using computed features, equivalent to training.ipynb, but structured as a Python class
+
+│   ├── training-hpc.py         # Feature-Based Training script
 │   ├── eeg_inference.ipynb     # Notebook to run the inference
 │   ├── README.md               # Project documentation (this file)
 │   ├── training_stft.ipynb     # Training notebook for models run on STFT
@@ -171,7 +168,7 @@ The notebook demonstrates how to load the trained models and run predictions on 
 │   │   │   ├── FeatureBased_CNLneg_ws7680_ss7680_majority3840_typeCatBoostClassifier_preprocTrue_randomseed42_50.pkl
 │   │   │   ├── FeatureBased_CRneg_ws7680_ss7680_majority3840_typeCatBoostClassifier_preprocTrue_randomseed42_50.pkl
 │   ├── src/
-│   │   ├── utils.py              # Helper Functions to be used in the training.ipynb and plot generations
+│   │   ├── utils.py              # Helper Functions to be used in the training notebooks and plot generations
 │   │   ├── analysis/
 │   │   │   ├── interpretability.py
 │   │   ├── dataset/
