@@ -8,6 +8,7 @@ from statsmodels.tsa.ar_model import AutoReg
 from lempel_ziv_complexity import lempel_ziv_complexity
 from EntropyHub import DispEn
 
+
 class EEG_metrics:
     def __init__(
         self,
@@ -56,6 +57,7 @@ class EEG_metrics:
         - Seabold, S., Perktold, J., 2010. statsmodels: Econometric and statistical modeling with python, in: 9th Python in Science Conference.
 
         """
+
     def time_domain_features(self, eeg_window):
         """
         Extracts time-domain features from EEG data.
@@ -70,14 +72,20 @@ class EEG_metrics:
         max_amplitude = np.max(eeg_window)
         min_amplitude = np.min(eeg_window)
         peak_to_peak = max_amplitude - min_amplitude
-        rms = np.sqrt(np.mean(eeg_window**2)) #Feature reduction and selection for EMG signal classification by Phinyomark
+        rms = np.sqrt(
+            np.mean(eeg_window**2)
+        )  # Feature reduction and selection for EMG signal classification by Phinyomark
         abs_window = np.abs(eeg_window)
         peak_index = np.argmax(abs_window)
         mean_abs = np.mean(abs_window)
         peak = np.max(abs_window)
 
-        waveform_index = rms / mean_abs if mean_abs != 0 else 0 # also called Form Factor: Tracking and Estimation of Frequency, Amplitude, and Form Factor of a Harmonic Time Series [Lecture Notes] by Ronald M. Aarts; also called: Shape factor: https://de.mathworks.com/help/predmaint/ug/signal-features.html
-        margin_index = rms / peak if peak != 0 else 0 #Inverse Crest Factor https://fr.wikipedia.org/wiki/Facteur_de_cr%C3%AAte or Peak-magnitude-to-RMS ratio https://de.mathworks.com/help/signal/ref/peak2rms.html 
+        waveform_index = (
+            rms / mean_abs if mean_abs != 0 else 0
+        )  # also called Form Factor: Tracking and Estimation of Frequency, Amplitude, and Form Factor of a Harmonic Time Series [Lecture Notes] by Ronald M. Aarts; also called: Shape factor: https://de.mathworks.com/help/predmaint/ug/signal-features.html
+        margin_index = (
+            rms / peak if peak != 0 else 0
+        )  # Inverse Crest Factor https://fr.wikipedia.org/wiki/Facteur_de_cr%C3%AAte or Peak-magnitude-to-RMS ratio https://de.mathworks.com/help/signal/ref/peak2rms.html
 
         first_deriv = np.diff(eeg_window)
 
@@ -109,16 +117,56 @@ class EEG_metrics:
             "num_zero_crossings": ant.num_zerocross(eeg_window),
         }
 
-    def compute_band_power(self, psd_density, freqs, fmin, fmax):
-        """Compute the band power between fmin and fmax using Welch PSD."""
-        mask = (freqs >= fmin) & (freqs <= fmax)
-        power = np.trapz(psd_density[mask], freqs[mask])
-        return power
+    def band_power(self, psd_density, freqs, low, high, interval="[)"):
+        """
+        Integrate PSD over a frequency band with explicit endpoint behavior.
 
-    def band_power(self, psd, freqs, low, high):
-        """Computes power in a given frequency band."""
-        idx = (freqs >= low) & (freqs < high)
-        return np.trapz(psd[idx], freqs[idx])
+        Parameters
+        ----------
+        psd_density : array-like
+            Power spectral density values (V^2/Hz).
+        freqs : array-like
+            Frequency bin centers in Hz (uniform for Welch).
+        low, high : float
+            Band edges in Hz, must satisfy low < high.
+        interval : str
+            One of '[]', '[)', '(]', '()' meaning:
+            '[]'  -> closed interval  [low, high]
+            '[)'  -> half-open        [low, high)   (recommended to avoid overlap)
+            '(]'  -> half-open        (low, high]
+            '()'  -> open             (low, high)
+
+        Returns
+        -------
+        power : float
+            Band power in V^2 (trapezoidal integration of PSD over Hz).
+        """
+        assert interval in (
+            "[]",
+            "[)",
+            "(]",
+            "()",
+        ), "interval must be one of [], [), (], ()"
+        assert low < high, "low must be < high"
+
+        left_closed = interval[0] == "["
+        right_closed = interval[1] == "]"
+
+        if left_closed:
+            left_mask = freqs >= low
+        else:
+            left_mask = freqs > low
+
+        if right_closed:
+            right_mask = freqs <= high
+        else:
+            right_mask = freqs < high
+
+        sel = left_mask & right_mask
+        if not np.any(sel):
+            return 0.0
+
+        return np.trapz(psd_density[sel], freqs[sel])
 
     def calculate_frequencies(self, cumulative_power, freqs, threshold):
         """
@@ -130,13 +178,33 @@ class EEG_metrics:
         - threshold: The cumulative power threshold to find (e.g., 0.5 for median frequency, 0.95 for SEF).
 
         Returns:
-        Feature sets  
+        Feature sets
+
         """
         index = np.searchsorted(cumulative_power, threshold)
         return freqs[index] if index < len(freqs) else np.nan
 
     # https://www.bjanaesthesia.org/article/S0007-0912(17)43581-1/pdf for the definition of SEF and median
     def frequency_domain_features(self, eeg_window):
+        """
+        Extracts frequency-domain features from EEG data.
+        Includes:
+        - Band powers (delta, theta, alpha, beta, gamma)
+        - Spectral edge frequency (SEF)
+        - Mean frequency
+        - Median frequency
+        - Beta ratios (Gu and Saadeh)
+        - Spectral slope
+        Parameters:
+        - eeg_window: 1D NumPy array of EEG data.
+        Returns:
+        - Dictionary of frequency-domain features.
+
+        Power spectral density (PSD) was estimated with Welch’s method (scaling="density").
+        Frequency bins are uniformly spaced; thus, for ratio-based features (median frequency, spectral edge frequency, and spectral centroid),
+        the bin width Δf cancels. Band powers were computed by trapezoidal integration of the PSD over the specified ranges, yielding power in V².
+        All features were computed within 0.5–47 Hz with band edges.
+        """
         # Compute Welch Power Spectral Density (PSD) once
         freqs, psd_density = welch(
             eeg_window,
@@ -154,13 +222,13 @@ class EEG_metrics:
         total_power = np.trapz(psd_density, freqs)
 
         # High frequency power (30-47 Hz)
-        P_high_gu = self.compute_band_power(psd_density, freqs, 30, 47)
-        P_low_gu = self.compute_band_power(psd_density, freqs, 11, 20)
+        P_high_gu = self.band_power(psd_density, freqs, 30, 47, interval="[]")
+        P_low_gu = self.band_power(psd_density, freqs, 11, 20, interval="[]")
 
         beta_ratio_gu = np.log(P_high_gu / (P_low_gu + 1e-10))
 
-        P_high_saadeh = self.compute_band_power(psd_density, freqs, 20, 48)
-        P_low_saadeh = self.compute_band_power(psd_density, freqs, 8, 20)
+        P_high_saadeh = self.band_power(psd_density, freqs, 20, 48, interval="[]")
+        P_low_saadeh = self.band_power(psd_density, freqs, 8, 20, interval="[]")
 
         relative_beta_ratio_saadeh = np.log2(
             (P_high_saadeh + 1e-10) / (P_low_saadeh + 1e-10)
@@ -176,7 +244,7 @@ class EEG_metrics:
         ]
         band_features = {}
         for name, low, high in all_bands:
-            bp = self.band_power(psd_density, freqs, low, high)
+            bp = self.band_power(psd_density, freqs, low, high, interval="[)")
             band_features[f"{name}_ratio"] = bp / total_power if total_power > 0 else 0
 
         # Spectral centroid (Mean Frequency)
@@ -214,7 +282,6 @@ class EEG_metrics:
             features["spectral_slope"] = np.nan
 
         return features
-
 
     def entropy_and_complexity_features(self, eeg_window):
         """
@@ -375,4 +442,3 @@ class EEG_metrics:
         hist, _ = np.histogram(signal, bins=bins, density=True)
         probs = hist[hist > 0]  # Filter out zero-probability bins
         return 1 / (1 - alpha) * np.log(np.sum(probs**alpha))
-
