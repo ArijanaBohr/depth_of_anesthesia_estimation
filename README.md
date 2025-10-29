@@ -186,8 +186,34 @@ The notebook demonstrates how to load the trained models and run predictions on 
 │   │   │   ├── inference.py      #Contains all functions needed to run the inference.ipynb notebook
 
 ```
-## 📑 Citation
-If you use this code, please cite our paper: 
+## Implementation details
+The approaches were implemented in Python 3.9, using scikit-learn (Pedregosa et al., 2011) and PyTorch.
+Feature extraction from EEG windows was performed using the following Python toolboxes:
+NumPy (Harris et al., 2020),
+PyWavelets (Lee et al., 2019),
+SciPy (Virtanen et al., 2020),
+pycatch22 (Lubba et al., 2019),
+AntroPy (Vallat, 2021),
+StatsModels (Seabold & Perktold, 2010),
+lempel_ziv_complexity (Besson, 2019),
+and EntropyHub (Flood, 2021).
+
+References:
+
+	•	Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., et al. (2011). Scikit-learn: Machine learning in Python. Journal of Machine Learning Research, 12, 2825–2830.
+	•	Harris, C. R., Millman, K. J., van der Walt, S. J., Gommers, R., Virtanen, P., et al. (2020). Array programming with NumPy. Nature, 585(7825), 357–362. https://doi.org/10.1038/s41586-020-2649-2
+	•	Lee, G. R., Gommers, R., Wasilewski, F., Wohlfahrt, K., & O’Leary, A. (2019). PyWavelets: A Python package for wavelet analysis. Journal of Open Source Software, 4(36), 1237. https://doi.org/10.21105/joss.01237
+	•	Virtanen, P., Gommers, R., Oliphant, T. E., Haberland, M., Reddy, T., et al. (2020). SciPy 1.0: Fundamental algorithms for scientific computing in Python. Nature Methods, 17, 261–272. https://doi.org/10.1038/s41592-019-0686-2
+	•	Lubba, C. H., Sethi, S. S., Knaute, P., Schultz, S. R., Fulcher, B. D., & Jones, N. S. (2019). catch22: Canonical time-series characteristics selected through highly comparative time-series analysis. Data Mining and Knowledge Discovery, 33(6), 1821–1852.
+	•	Vallat, R. (2021). AntroPy: Entropy and complexity of (EEG) time series in Python. https://github.com/raphaelvallat/antropy — version v0.1.9, BSD 3-Clause License.
+	•	Seabold, S., & Perktold, J. (2010). StatsModels: Econometric and statistical modeling with Python. In Proceedings of the 9th Python in Science Conference.
+	•	Besson, L. N. (2019). lempel_ziv_complexity: Fast implementation of the Lempel–Ziv complexity algorithm. https://pypi.org/project/lempel-ziv-complexity/ — version 0.2.2, MIT License.
+	•	Flood, M. W. (2021). EntropyHub: An open-source toolkit for entropic time series analysis. PLoS ONE, 16(11), e0259448. https://doi.org/10.1371/journal.pone.0259448
+
+
+## Citation
+If you use this repository or code in your research, please cite our paper:
+
 Advancing Depth of Anesthesia Monitoring based on Single-Channel EEG: A Comparative Study of Machine Learning Approaches by 
 Anonymized Authors (Bibtex to follow)
 
