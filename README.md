@@ -12,16 +12,16 @@ This projects trains binary classifiers of CNLneg/SSPLneg/CRneg/BuS.
 This project uses [Conda](https://docs.conda.io/) for environment management.  
 The environment can be set up in one of two ways:
 ### Option 1: Using `environment.yml`
-
+<pre>
 conda eeg_env create -f environment.yml
 conda activate eeg_env 
-
+</pre>
 ### Option 2: Using `conda_requirements.txt`
-
+<pre>
 conda create -n eeg_env python=3.9
 conda activate eeg_env
 conda install --file conda_requirements.txt
-
+</pre>
 ## ▶️ Quick Start
 
 Once the environment is set up, the main results from the paper with the provided scripts can be reproduced.
